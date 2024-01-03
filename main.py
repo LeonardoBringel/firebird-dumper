@@ -1,6 +1,8 @@
 import fdb
 import os
 from dotenv import load_dotenv
+from decimal import Decimal
+import datetime
 
 
 load_dotenv()
@@ -114,8 +116,8 @@ def dump_table(table):
             print(f'WARNING: skipping empty table {table}')
             return False
 
-        # for r in result:
-        #     print(r)
+        for r in result:
+            print(tuple(convert_element(value) for value in r))
         return True
     except Exception as e:
         print(f'ERROR: Failed to dump table {table} - {e}')
@@ -128,6 +130,19 @@ def make_create_table_statement(table):
     statement = statement[:-2] # remove unnecessary ,
     statement += ');'
     print(statement)
+
+
+def convert_element(value):
+    if not value:
+        return 'NULL'
+    elif isinstance(value, Decimal):
+        # Convert Decimal to float or int as needed
+        return float(value)
+    elif isinstance(value, datetime.datetime):
+        # Format datetime as a string (or convert as needed)
+        return value.strftime('%Y-%m-%d %H:%M:%S')
+    else:
+        return value
 
 
 for table in fetch_tables():
