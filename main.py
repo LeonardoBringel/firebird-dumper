@@ -110,14 +110,16 @@ def dump_table(table):
         cur = con.cursor()
 
         cur.execute(f'SELECT * FROM {table}')
-        result = cur.fetchall()
+        results = cur.fetchall()
         cur.close()
-        if not result:
+        if not results:
             print(f'WARNING: skipping empty table {table}')
             return False
 
-        for r in result:
-            print(tuple(convert_element(value) for value in r))
+        for result in results:
+            result = tuple(convert_element(value) for value in result) # convert data into an usefull format
+            make_insert_statement(table, result)
+
         return True
     except Exception as e:
         print(f'ERROR: Failed to dump table {table} - {e}')
@@ -127,6 +129,15 @@ def make_create_table_statement(table):
     statement = f'CREATE TABLE `{table}` ('
     for column in fetch_table_description(table):
         statement += f'`{column[0]}` {column[1]} {"NOT NULL " if column[2] == 1 else ""}{f"{column[3]}" if column[3] is not None else "DEFAULT NULL"}, '
+    statement = statement[:-2] # remove unnecessary ,
+    statement += ');'
+    print(statement)
+
+
+def make_insert_statement(table, values):
+    statement = f'INSERT INTO {table} VALUES ('
+    for value in values:
+        statement += f"""{f"'{value}'" if value != "NULL" else "NULL"}, """
     statement = statement[:-2] # remove unnecessary ,
     statement += ');'
     print(statement)
@@ -142,7 +153,8 @@ def convert_element(value):
         # Format datetime as a string (or convert as needed)
         return value.strftime('%Y-%m-%d %H:%M:%S')
     else:
-        return value
+        # '\' is a special character in SQL, it should be replaced by '\\' in the INSERT statement to avoid errors
+        return value.replace(r'\', r'\\')
 
 
 for table in fetch_tables():
