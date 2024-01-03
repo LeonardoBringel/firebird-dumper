@@ -40,7 +40,7 @@ def fetch_tables():
 
 def fetch_table_description(table):
     try:
-        # special tanks for Pablo T. for the inspiration for that query on https://stackoverflow.com/a/23303393
+        # special thanks to Pablo T. for inspiring this query at https://stackoverflow.com/a/23303393
         query = f"""
         SELECT
         RF.RDB$FIELD_NAME FIELD_NAME,
@@ -114,16 +114,24 @@ def dump_table(table):
             print(f'WARNING: skipping empty table {table}')
             return False
 
-        for r in result:
-            print(r)
+        # for r in result:
+        #     print(r)
         return True
     except Exception as e:
         print(f'ERROR: Failed to dump table {table} - {e}')
 
 
+def make_create_table_statement(table):
+    statement = f'CREATE TABLE `{table}` ('
+    for column in fetch_table_description(table):
+        statement += f'`{column[0]}` {column[1]} {"NOT NULL " if column[2] == 1 else ""}{f"{column[3]}" if column[3] is not None else "DEFAULT NULL"}, '
+    statement = statement[:-2] # remove unnecessary ,
+    statement += ');'
+    print(statement)
+
+
 for table in fetch_tables():
     print(f'\n---- {table} ----')
     if dump_table(table): # skip empty tables
-        for column in fetch_table_description(table):
-            print(column)
+        make_create_table_statement(table)
 con.close()
