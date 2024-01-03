@@ -1,6 +1,7 @@
 import fdb
 import os
 from dotenv import load_dotenv
+from alive_progress import alive_bar
 from decimal import Decimal
 import datetime
 
@@ -12,14 +13,13 @@ USER = os.environ.get('USER')
 PASSWORD = os.environ.get('PASSWORD')
 
 try:
-    print(f'Connecting to {DATABASE} as user:{USER} password:{PASSWORD}')
     con = fdb.connect(
         database=DATABASE,
         user=USER,
         password=PASSWORD,
     )
 except Exception as e:
-    print('ERROR: Failed to establish database connection, try checking your env variables and try again.')
+    print(f'(ERROR) Failed to establish connection with database:{DATABASE} - using user:{USER} and password:{PASSWORD}')
     exit(1)
 
 
@@ -37,7 +37,7 @@ def fetch_tables():
         cur.close()
         return tables
     except Exception as e:
-        print('ERROR: Failed to fetch tables from database - {e}')
+        print(f'(ERROR) Failed to fetch tables from database - {e}')
 
 
 def fetch_table_description(table):
@@ -102,7 +102,7 @@ def fetch_table_description(table):
 
         return result
     except Exception as e:
-        print(f'ERROR: Failed do describe table {table} - {e}')
+        print(f'(ERROR) Failed to describe table {table} - {e}')
 
 
 def dump_table(table):
@@ -113,16 +113,18 @@ def dump_table(table):
         results = cur.fetchall()
         cur.close()
         if not results:
-            print(f'WARNING: skipping empty table {table}')
+            print(f'(INFO) Skipping empty table {table}')
             return False
 
         for result in results:
             result = tuple(convert_element(value) for value in result) # convert data into an usefull format
             make_insert_statement(table, result)
 
+        print(f'(INFO) Generated {len(results)} insert {"statements" if len(results) > 1 else "statement"} for {table} table')
+
         return True
     except Exception as e:
-        print(f'ERROR: Failed to dump table {table} - {e}')
+        print(f'(ERROR) Something whent wrong while dumping {table} table - {e}')
 
 
 def make_create_table_statement(table):
@@ -131,7 +133,8 @@ def make_create_table_statement(table):
         statement += f'`{column[0]}` {column[1]} {"NOT NULL " if column[2] == 1 else ""}{f"{column[3]}" if column[3] is not None else "DEFAULT NULL"}, '
     statement = statement[:-2] # remove unnecessary ,
     statement += ');'
-    print(statement)
+    print(f'(INFO) Generated statement to create {table} table')
+    # print(statement) # TODO
 
 
 def make_insert_statement(table, values):
@@ -140,7 +143,7 @@ def make_insert_statement(table, values):
         statement += f"""{f"'{value}'" if value != "NULL" else "NULL"}, """
     statement = statement[:-2] # remove unnecessary ,
     statement += ');'
-    print(statement)
+    # print(statement) # TODO
 
 
 def convert_element(value):
@@ -152,13 +155,19 @@ def convert_element(value):
     elif isinstance(value, datetime.datetime):
         # Format datetime as a string (or convert as needed)
         return value.strftime('%Y-%m-%d %H:%M:%S')
-    else:
+    elif isinstance(value, str):
         # '\' is a special character in SQL, it should be replaced by '\\' in the INSERT statement to avoid errors
-        return value.replace(r'\', r'\\')
+        return value.replace('\\', '\\\\')
+    else:
+        return value
 
 
-for table in fetch_tables():
-    print(f'\n---- {table} ----')
-    if dump_table(table): # skip empty tables
-        make_create_table_statement(table)
+tables = fetch_tables()
+with alive_bar(len(tables)) as bar:
+    bar.title('DUMPING DATABASE')
+    for table in tables:
+        if dump_table(table): # skip empty tables
+            make_create_table_statement(table)
+        bar()
+
 con.close()
