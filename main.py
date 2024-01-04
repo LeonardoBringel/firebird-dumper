@@ -3,7 +3,7 @@ import os
 from dotenv import load_dotenv
 from alive_progress import alive_bar
 from decimal import Decimal
-import datetime
+from datetime import datetime
 
 
 load_dotenv()
@@ -11,6 +11,11 @@ load_dotenv()
 DATABASE = os.environ.get('DATABASE')
 USER = os.environ.get('USER')
 PASSWORD = os.environ.get('PASSWORD')
+
+output_file = datetime.now()
+output_file = 'dumps/dump_' + str(output_file).replace('-', '').replace(':', '').replace(' ', '').split('.')[0] + '.sql'
+if not os.path.exists('dumps/'):
+   os.makedirs('dumps/')
 
 try:
     con = fdb.connect(
@@ -116,9 +121,18 @@ def dump_table(table):
             print(f'(INFO) Skipping empty table {table}')
             return False
 
+        statement = make_create_table_statement(table)
+
+        file = open(output_file, "a")
+        print(f'-- TABLE {table} --', file=file)
+        print(statement + '\n', file=file)
+
         for result in results:
             result = tuple(convert_element(value) for value in result) # convert data into an usefull format
-            make_insert_statement(table, result)
+            statement = make_insert_statement(table, result)
+            print(statement, file=file)
+        print('\n\n', file=file)
+        file.close()
 
         print(f'(INFO) Generated {len(results)} insert {"statements" if len(results) > 1 else "statement"} for {table} table')
 
@@ -134,16 +148,16 @@ def make_create_table_statement(table):
     statement = statement[:-2] # remove unnecessary ,
     statement += ');'
     print(f'(INFO) Generated statement to create {table} table')
-    # print(statement) # TODO
+    return statement
 
 
 def make_insert_statement(table, values):
-    statement = f'INSERT INTO {table} VALUES ('
+    statement = f'INSERT INTO `{table}` VALUES ('
     for value in values:
         statement += f"""{f"'{value}'" if value != "NULL" else "NULL"}, """
     statement = statement[:-2] # remove unnecessary ,
     statement += ');'
-    # print(statement) # TODO
+    return statement
 
 
 def convert_element(value):
@@ -152,7 +166,7 @@ def convert_element(value):
     elif isinstance(value, Decimal):
         # Convert Decimal to float or int as needed
         return float(value)
-    elif isinstance(value, datetime.datetime):
+    elif isinstance(value, datetime):
         # Format datetime as a string (or convert as needed)
         return value.strftime('%Y-%m-%d %H:%M:%S')
     elif isinstance(value, str):
@@ -166,8 +180,11 @@ tables = fetch_tables()
 with alive_bar(len(tables)) as bar:
     bar.title('DUMPING DATABASE')
     for table in tables:
-        if dump_table(table): # skip empty tables
-            make_create_table_statement(table)
+        dump_table(table)
         bar()
-
+    print(f'(INFO) Completed, dump saved to file {output_file}')
 con.close()
+
+file = open(output_file, "a")
+print(f'-- END FILE, powered by firebird-dumper --', file=file, end='')
+file.close()

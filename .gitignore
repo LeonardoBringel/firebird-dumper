@@ -1,2 +1,5 @@
+# config file
 .env
-output.txt
+
+# output dir
+dumps/
