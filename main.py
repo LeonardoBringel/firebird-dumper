@@ -123,7 +123,7 @@ def dump_table(table):
 
         statement = make_create_table_statement(table)
 
-        file = open(output_file, "a")
+        file = open(output_file, 'a', encoding="utf-8")
         print(f'-- TABLE {table} --', file=file)
         print(statement + '\n', file=file)
 
@@ -171,7 +171,8 @@ def convert_element(value):
         return value.strftime('%Y-%m-%d %H:%M:%S')
     elif isinstance(value, str):
         # '\' is a special character in SQL, it should be replaced by '\\' in the INSERT statement to avoid errors
-        return value.replace('\\', '\\\\')
+        # "'" is also a special characater and should be replaced by "''"
+        return value.replace('\\', '\\\\').replace("'", "''")
     else:
         return value
 
@@ -185,6 +186,6 @@ with alive_bar(len(tables)) as bar:
     print(f'(INFO) Completed, dump saved to file {output_file}')
 con.close()
 
-file = open(output_file, "a")
+file = open(output_file, 'a', encoding="utf-8")
 print(f'-- END FILE, powered by firebird-dumper --', file=file, end='')
 file.close()
